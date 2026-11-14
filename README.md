@@ -1,13 +1,17 @@
-# Pixel Roller
+# Four Card Draw
 
-A random 32×32 pixel painting generator with retro palettes.
+A random card drawer. Each draw shuffles a fresh 52-card deck and draws 4 cards, so no card repeats in a draw.
 
-- **Roll** (or press Space) fills every pixel with a random color from the selected palette.
-- Palettes: Sweetie 16, C64, CGA, Green LCD, Amber CRT.
-- The last 10 rolls show below the painting. Tap any painting to enlarge it.
-- Each roll is stored as a seed, so it is reproducible. History is kept in the browser.
+- **Shuffle & draw 4** (or press Space) makes a new draw from a new full deck.
+- The hand is rated by rarity over all 270,725 possible 4-card hands:
+  high card, one pair, flush, two pair, straight, three of a kind, straight flush, four of a kind (most common to rarest).
+- **Draw order** is a bonus: cards drawn sorted by rank (low to high or high to low) make the result rarer.
+- Each draw shows its exact odds, a tier (Common to Legendary), a rarity score (0–100) and the percent of poker hands it beats.
+- The last 10 draws are kept in the browser.
 
-It is one static file (`index.html`), no build step.
+The older Pixel Roller (random 32×32 pixel paintings) is at `pixel-roller.html`.
+
+All files are static, no build step.
 
 ## Use on a phone
 

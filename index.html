@@ -3,22 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-</head>
-<body>
-<!-- ARTIFACT-START -->
-<title>Pixel Roller</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<title>Four Card Draw</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
-  /* Layout: one arcade-cabinet column. Canvas on top, controls below, last 10 rolls as a strip. Single dark theme by choice. */
+  /* One column: 4 cards on a felt table, verdict panel, draw button, odds table, last 10 draws. Single dark theme by choice. */
   :root {
     --bg: #14121c;
     --panel: #1e1b2a;
     --edge: #35304a;
+    --felt: #173a2c;
+    --felt-edge: #24563f;
     --fg: #ece8f6;
     --muted: #9690ad;
     --accent: #ffcd75;
     --accent-ink: #1a1c2c;
+    --card: #f7f3ea;
+    --card-ink: #1a1c2c;
+    --card-red: #c8323f;
+    --t-common: #9690ad;
+    --t-uncommon: #6ccf7f;
+    --t-rare: #5aa8ff;
+    --t-epic: #c77dff;
+    --t-legendary: #ffb000;
     --font-display: "Silkscreen", "Courier New", monospace;
     --font-body: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
     color-scheme: dark;
@@ -37,198 +43,361 @@
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font: 400 26px/1 var(--font-display); margin: 0; letter-spacing: 0.02em; color: var(--accent); }
   .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  a.meta { text-decoration: underline; text-underline-offset: 3px; }
+  h2 { font: 400 14px/1 var(--font-display); margin: 0; color: var(--muted); letter-spacing: 0.06em; }
 
-  .screen {
-    background: var(--panel);
-    border: 2px solid var(--edge);
-    padding: 10px;
-    display: grid;
-    gap: 8px;
+  .table {
+    background: radial-gradient(ellipse at 50% 30%, #1f4a38, var(--felt) 70%);
+    border: 2px solid var(--felt-edge);
+    padding: 14px 10px 10px;
+    display: grid; gap: 10px;
   }
-  .canvas-btn {
-    display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in;
+  .hand { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; perspective: 800px; }
+  .slot { display: grid; gap: 6px; justify-items: center; }
+  .slot small { color: #9cc7b0; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .card {
+    width: 100%; aspect-ratio: 5 / 7; position: relative;
+    transform-style: preserve-3d; transition: transform .45s cubic-bezier(.2,.7,.2,1);
   }
-  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
-  #main { aspect-ratio: 1; max-width: 100%; }
-  .screen-foot { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .card.down { transform: rotateY(180deg); }
+  .face, .back {
+    position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    border-radius: 6px; box-shadow: 0 3px 0 rgba(0,0,0,.35);
+  }
+  .face {
+    background: var(--card); color: var(--card-ink);
+    display: grid; grid-template-rows: auto 1fr auto; padding: 5px 6px;
+    font-family: var(--font-display);
+  }
+  .face.red { color: var(--card-red); }
+  .face .corner { font-size: clamp(13px, 4.2vw, 20px); line-height: 1; }
+  .face .corner.b { justify-self: end; transform: rotate(180deg); }
+  .face .pip { place-self: center; font-size: clamp(28px, 10vw, 52px); line-height: 1; font-family: var(--font-body); }
+  .back {
+    transform: rotateY(180deg);
+    background: repeating-linear-gradient(45deg, #5d275d 0 6px, #b13e53 6px 12px);
+    border: 4px solid var(--card);
+  }
 
-  .swatches { display: flex; flex-wrap: wrap; gap: 3px; }
-  .swatches span { width: 18px; height: 18px; border: 1px solid rgba(0,0,0,.4); }
+  .verdict {
+    background: var(--panel); border: 2px solid var(--edge); padding: 12px;
+    display: grid; gap: 8px;
+  }
+  .v-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .v-name { font: 400 20px/1.1 var(--font-display); }
+  .tier {
+    font: 400 12px/1 var(--font-display); letter-spacing: .06em;
+    padding: 6px 8px; border: 2px solid currentColor;
+  }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .stat { display: grid; gap: 2px; }
+  .stat b { font-weight: 600; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  .meter { height: 8px; background: var(--edge); }
+  .meter i { display: block; height: 100%; width: 0; transition: width .5s ease; }
+  .order { color: var(--muted); font-size: 12px; margin: 0; }
+  .order b { color: var(--fg); font-weight: 600; }
 
-  .controls { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
-  button.roll {
+  button.draw {
     font: 400 20px/1 var(--font-display);
-    padding: 16px 12px;
+    padding: 16px 12px; width: 100%;
     background: var(--accent); color: var(--accent-ink);
     border: 0; box-shadow: 0 5px 0 #b86f50;
     cursor: pointer; touch-action: manipulation;
   }
-  button.roll:active { transform: translateY(4px); box-shadow: 0 1px 0 #b86f50; }
-  select {
-    font: 600 14px var(--font-body); color: var(--fg); background: var(--panel);
-    border: 2px solid var(--edge); padding: 0 10px; min-height: 48px;
-  }
-  button:focus-visible, select:focus-visible, .thumb:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+  button.draw:active { transform: translateY(4px); box-shadow: 0 1px 0 #b86f50; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
 
-  h2 { font: 400 14px/1 var(--font-display); margin: 0; color: var(--muted); letter-spacing: 0.06em; }
-  .history { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-  .thumb {
-    padding: 0; border: 2px solid var(--edge); background: var(--panel); cursor: zoom-in;
-    display: grid; gap: 2px; color: var(--muted); font: 11px var(--font-body); font-variant-numeric: tabular-nums;
-  }
-  .thumb.current { border-color: var(--accent); color: var(--accent); }
-  .thumb span { padding: 2px 0 3px; }
-  .empty { aspect-ratio: 1; border: 2px dashed var(--edge); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--edge); }
+  th { color: var(--muted); font-weight: 400; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.hit td { background: #2a2540; color: var(--accent); }
+
+  .history { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .history li { display: grid; grid-template-columns: 3.2em auto 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; background: var(--panel); border: 1px solid var(--edge); }
+  .history li:first-child { border-color: var(--accent); }
+  .history .n { color: var(--muted); }
+  .history .cards { font-weight: 600; white-space: nowrap; }
+  .history .cards .r { color: #ff6b77; }
+  .history .h { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .history .t { font: 400 10px/1 var(--font-display); }
   .hint { color: var(--muted); font-size: 12px; margin: 0; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  details p { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 
-  dialog {
-    border: 2px solid var(--edge); background: var(--panel); color: var(--fg);
-    padding: 12px; max-width: 96vw; max-height: 96vh;
+  @media (max-width: 380px) {
+    .history li { grid-template-columns: 2.6em auto 1fr; }
+    .history .h { display: none; }
   }
-  dialog::backdrop { background: rgba(8, 6, 14, 0.88); }
-  #big { width: min(88vw, 80vh); aspect-ratio: 1; cursor: zoom-out; }
-  .dlg-foot { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .dlg-foot button { font: 600 12px var(--font-body); background: none; color: var(--fg); border: 1px solid var(--edge); padding: 4px 10px; cursor: pointer; }
-
-  @media (prefers-reduced-motion: reduce) { button.roll:active { transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .meter i { transition: none; }
+    button.draw:active { transform: none; }
+  }
 </style>
-
+</head>
+<body>
 <main>
   <header>
-    <h1>Pixel Roller</h1>
-    <div class="meta" id="count">0 rolls</div>
+    <h1>Four Card Draw</h1>
+    <span class="meta" id="count">0 draws</span>
+    <a class="meta" href="pixel-roller.html">Pixel Roller →</a>
   </header>
 
-  <section class="screen" aria-label="Current painting">
-    <button class="canvas-btn" id="mainBtn" aria-label="Enlarge current painting">
-      <canvas id="main" width="32" height="32"></canvas>
-    </button>
-    <div class="screen-foot"><span id="seedLabel">seed —</span><span>32 × 32</span></div>
-    <div class="swatches" id="swatches" aria-label="Palette colors"></div>
+  <section class="table" aria-label="Current hand">
+    <div class="hand" id="hand"></div>
   </section>
 
-  <div class="controls">
-    <button class="roll" id="roll">Roll</button>
-    <select id="palette" aria-label="Palette"></select>
-  </div>
+  <section class="verdict" aria-live="polite" aria-label="Hand quality">
+    <div class="v-top">
+      <span class="v-name" id="vName">—</span>
+      <span class="tier" id="vTier">—</span>
+    </div>
+    <div class="meter" aria-hidden="true"><i id="vMeter"></i></div>
+    <div class="stats">
+      <div class="stat"><b id="vOdds">—</b><span>odds of this result</span></div>
+      <div class="stat"><b id="vBeats">—</b><span>poker hands beaten</span></div>
+      <div class="stat"><b id="vScore">—</b><span>rarity score / 100</span></div>
+    </div>
+    <p class="order" id="vOrder"></p>
+  </section>
 
-  <section style="display:grid;gap:10px" aria-label="Past rolls">
-    <h2>Last 10 rolls</h2>
-    <div class="history" id="history"></div>
-    <p class="hint">Tap a painting to enlarge it. Press Space to roll.</p>
+  <button class="draw" id="draw">Shuffle &amp; draw 4</button>
+  <p class="hint">Each draw uses a fresh, full 52-card deck. The 4 cards in a draw never repeat. Press Space to draw.</p>
+
+  <section style="display:grid;gap:10px" aria-label="Hand odds">
+    <h2>Hand rarity</h2>
+    <table>
+      <thead><tr><th>Hand</th><th class="num">Hands</th><th class="num">Odds</th><th class="num">In order</th></tr></thead>
+      <tbody id="odds"></tbody>
+    </table>
+    <details>
+      <summary>How the score works</summary>
+      <p>All 270,725 possible 4-card hands are counted. Hands are ranked by rarity, so a straight beats two pair and three of a kind beats a straight. "In order" means the cards came out sorted by rank (low to high or high to low, ace high; in A-2-3-4 the ace can also be low). That is a bonus event; it makes the odds rarer. Rarity score is the odds on a log scale: 1 in 1 is 0, 1 in 100,000 is 100. "Poker hands beaten" compares rank and kickers against every possible hand.</p>
+    </details>
+  </section>
+
+  <section style="display:grid;gap:10px" aria-label="Past draws">
+    <h2>Last 10 draws</h2>
+    <ol class="history" id="history"></ol>
   </section>
 </main>
 
-<dialog id="dlg">
-  <canvas id="big" width="32" height="32"></canvas>
-  <div class="dlg-foot"><span id="dlgLabel"></span><button id="close">Close</button></div>
-</dialog>
-
 <script>
 (() => {
-  const SIZE = 32, KEEP = 10;
-  const PALETTES = {
-    "Sweetie 16": ["#1a1c2c","#5d275d","#b13e53","#ef7d57","#ffcd75","#a7f070","#38b764","#257179","#29366f","#3b5dc9","#41a6f6","#73eff7","#f4f4f4","#94b0c2","#566c86","#333c57"],
-    "C64": ["#000000","#ffffff","#880000","#aaffee","#cc44cc","#00cc55","#0000aa","#eeee77","#dd8855","#664400","#ff7777","#333333","#777777","#aaff66","#0088ff","#bbbbbb"],
-    "CGA": ["#000000","#0000aa","#00aa00","#00aaaa","#aa0000","#aa00aa","#aa5500","#aaaaaa","#555555","#5555ff","#55ff55","#55ffff","#ff5555","#ff55ff","#ffff55","#ffffff"],
-    "Green LCD": ["#0f380f","#306230","#8bac0f","#9bbc0f"],
-    "Amber CRT": ["#1a0f00","#4d2b00","#995500","#e68a00","#ffb000","#ffd27a"]
-  };
+  const KEEP = 10;
+  const SUITS = ["♠", "♥", "♦", "♣"];
+  const RED = [false, true, true, false];
+  const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
+  const rankOf = c => (c % 13) + 2;          // 2..14, ace high
+  const suitOf = c => Math.floor(c / 13);
+  const rl = r => RANK_LABEL[r] || String(r);
+
+  // Categories, from most common to rarest (4-card hand rarity order).
+  const CATS = ["High card", "One pair", "Flush", "Two pair", "Straight", "Three of a kind", "Straight flush", "Four of a kind"];
+  const TIERS = [
+    { name: "Common", max: 8, color: "var(--t-common)" },
+    { name: "Uncommon", max: 60, color: "var(--t-uncommon)" },
+    { name: "Rare", max: 300, color: "var(--t-rare)" },
+    { name: "Epic", max: 3000, color: "var(--t-epic)" },
+    { name: "Legendary", max: Infinity, color: "var(--t-legendary)" }
+  ];
+
+  // Evaluate a 4-card hand. Returns category index, tiebreak key and order info.
+  function evaluate(cards) {
+    const ranks = cards.map(rankOf);
+    const counts = new Map();
+    for (const r of ranks) counts.set(r, (counts.get(r) || 0) + 1);
+    const groups = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+    const flush = cards.every(c => suitOf(c) === suitOf(cards[0]));
+    const desc = [...ranks].sort((a, b) => b - a);
+    let straightTop = 0, wheel = false;
+    if (counts.size === 4) {
+      if (desc[0] - desc[3] === 3) straightTop = desc[0];
+      else if (desc[0] === 14 && desc[1] === 4 && desc[3] === 2) { straightTop = 4; wheel = true; }
+    }
+    let cat, tb;
+    if (groups[0][1] === 4) { cat = 7; tb = [groups[0][0]]; }
+    else if (straightTop && flush) { cat = 6; tb = [straightTop]; }
+    else if (groups[0][1] === 3) { cat = 5; tb = [groups[0][0], groups[1][0]]; }
+    else if (straightTop) { cat = 4; tb = [straightTop]; }
+    else if (groups[0][1] === 2 && groups[1][1] === 2) { cat = 3; tb = [groups[0][0], groups[1][0]]; }
+    else if (flush) { cat = 2; tb = desc; }
+    else if (groups[0][1] === 2) { cat = 1; tb = [groups[0][0], groups[1][0], groups[2][0]]; }
+    else { cat = 0; tb = desc; }
+    let key = cat;
+    for (let i = 0; i < 4; i++) key = key * 15 + (tb[i] || 0);
+
+    // Order: ace is high; in an A-2-3-4 straight it can also count low.
+    const dir = seq => {
+      let u = true, d = true;
+      for (let i = 1; i < 4; i++) { if (seq[i] < seq[i - 1]) u = false; if (seq[i] > seq[i - 1]) d = false; }
+      return [u, d];
+    };
+    let [up, down] = dir(ranks);
+    if (wheel && !up && !down) [up, down] = dir(ranks.map(r => r === 14 ? 1 : r));
+    // How many of the 24 draw orders of these 4 cards are sorted (for exact odds).
+    let fact = 1;
+    for (const n of counts.values()) fact *= n === 4 ? 24 : n === 3 ? 6 : n === 2 ? 2 : 1;
+    const sortedPerms = counts.size === 1 ? 24 : wheel ? 4 : 2 * fact;
+    return { cat, key, up, down, ordered: up || down, sortedPerms, wheel };
+  }
+
+  // Exact table over all C(52,4) = 270,725 hands.
+  const TOTAL = 270725;
+  const catCount = new Array(8).fill(0);
+  const catOrdered = new Array(8).fill(0);   // expected number of hands drawn in sorted order, in 24ths
+  const keys = new Float64Array(TOTAL);
+  let k = 0;
+  for (let a = 0; a < 52; a++) for (let b = a + 1; b < 52; b++) for (let c = b + 1; c < 52; c++) for (let d = c + 1; d < 52; d++) {
+    const e = evaluate([a, b, c, d]);
+    catCount[e.cat]++;
+    catOrdered[e.cat] += e.sortedPerms;
+    keys[k++] = e.key;
+  }
+  keys.sort();
+  const beaten = key => { let lo = 0, hi = TOTAL; while (lo < hi) { const m = (lo + hi) >> 1; if (keys[m] < key) lo = m + 1; else hi = m; } return lo / TOTAL; };
+
+  // Probability of the exact result: category AND (sorted or not sorted).
+  function resultOdds(e) {
+    const pOrd = catOrdered[e.cat] / 24 / TOTAL;
+    const pCat = catCount[e.cat] / TOTAL;
+    const p = e.ordered ? pOrd : pCat - pOrd;
+    return 1 / p;
+  }
+  const tierOf = odds => TIERS.find(t => odds < t.max);
+  const fmtOdds = n => "1 in " + (n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString("en-US"));
+  const score = odds => Math.max(0, Math.min(100, Math.round(Math.log10(odds) * 20)));
+
+  // Fair shuffle of a fresh deck with crypto randomness (rejection sampling, no modulo bias).
+  function randInt(n) {
+    const lim = Math.floor(0x100000000 / n) * n, buf = new Uint32Array(1);
+    let x; do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= lim);
+    return x % n;
+  }
+  function freshDraw() {
+    const deck = Array.from({ length: 52 }, (_, i) => i);
+    for (let i = 51; i > 0; i--) { const j = randInt(i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    return deck.slice(0, 4);
+  }
 
   const $ = id => document.getElementById(id);
   const store = {
-    get() { try { return JSON.parse(localStorage.getItem("pixel-roller") || "null"); } catch { return null; } },
-    set(v) { try { localStorage.setItem("pixel-roller", JSON.stringify(v)); } catch {} }
+    get() { try { return JSON.parse(localStorage.getItem("four-card-draw") || "null"); } catch { return null; } },
+    set(v) { try { localStorage.setItem("four-card-draw", JSON.stringify(v)); } catch {} }
   };
-
-  // Seeded PRNG: each roll is stored as seed + palette, so a painting is fully reproducible.
-  function mulberry32(a) {
-    return () => {
-      a |= 0; a = a + 0x6D2B79F5 | 0;
-      let t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-  }
-
-  function paint(canvas, roll) {
-    const colors = PALETTES[roll.palette] || PALETTES["Sweetie 16"];
-    const rnd = mulberry32(roll.seed);
-    const ctx = canvas.getContext("2d");
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-      ctx.fillStyle = colors[Math.floor(rnd() * colors.length)];
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }
-
   const saved = store.get() || {};
-  let state = {
-    palette: PALETTES[saved.palette] ? saved.palette : "Sweetie 16",
-    total: saved.total || 0,
-    history: Array.isArray(saved.history) ? saved.history.slice(0, KEEP) : []
+  const valid = h => h && Array.isArray(h.cards) && h.cards.length === 4 && new Set(h.cards).size === 4 && h.cards.every(c => Number.isInteger(c) && c >= 0 && c < 52);
+  const state = {
+    total: Number.isInteger(saved.total) ? saved.total : 0,
+    history: Array.isArray(saved.history) ? saved.history.filter(valid).slice(0, KEEP) : []
   };
 
-  const sel = $("palette");
-  for (const name of Object.keys(PALETTES)) sel.add(new Option(name, name));
-  sel.value = state.palette;
+  // Odds table.
+  const ORD_NAMES = ["1st", "2nd", "3rd", "4th"];
+  $("odds").replaceChildren(...CATS.map((name, i) => {
+    const tr = document.createElement("tr"); tr.id = "cat" + i;
+    const ord = catOrdered[i] / 24;
+    tr.innerHTML = `<td>${name}</td><td class="num">${catCount[i].toLocaleString("en-US")}</td><td class="num">${fmtOdds(TOTAL / catCount[i])}</td><td class="num">${fmtOdds(TOTAL / ord)}</td>`;
+    return tr;
+  }).reverse());
 
-  const label = r => `#${String(r.n).padStart(3, "0")} · ${r.palette} · seed ${r.seed.toString(16).padStart(8, "0")}`;
+  // Card slots.
+  const slots = [0, 1, 2, 3].map(i => {
+    const slot = document.createElement("div"); slot.className = "slot";
+    const card = document.createElement("div"); card.className = "card down";
+    const face = document.createElement("div"); face.className = "face";
+    const back = document.createElement("div"); back.className = "back";
+    card.append(face, back);
+    const lab = document.createElement("small"); lab.textContent = ORD_NAMES[i] + " draw";
+    slot.append(card, lab);
+    $("hand").append(slot);
+    return { card, face };
+  });
 
-  function renderSwatches() {
-    $("swatches").replaceChildren(...PALETTES[state.palette].map(c => {
-      const s = document.createElement("span"); s.style.background = c; s.title = c; return s;
+  function setFace(face, c) {
+    const r = rl(rankOf(c)), s = SUITS[suitOf(c)];
+    face.className = "face" + (RED[suitOf(c)] ? " red" : "");
+    face.innerHTML = `<span class="corner">${r}${s}</span><span class="pip">${s}</span><span class="corner b">${r}${s}</span>`;
+    face.parentElement.setAttribute("aria-label", cardName(c));
+    face.parentElement.setAttribute("role", "img");
+  }
+  const cardName = c => {
+    const names = { 11: "Jack", 12: "Queen", 13: "King", 14: "Ace" };
+    return (names[rankOf(c)] || rankOf(c)) + " of " + ["spades", "hearts", "diamonds", "clubs"][suitOf(c)];
+  };
+  const shortCard = c => `<span class="${RED[suitOf(c)] ? "r" : ""}">${rl(rankOf(c))}${SUITS[suitOf(c)]}</span>`;
+
+  function showVerdict(h) {
+    const e = evaluate(h.cards);
+    const odds = resultOdds(e);
+    const tier = tierOf(odds);
+    const sc = score(odds);
+    $("vName").textContent = CATS[e.cat];
+    $("vTier").textContent = tier.name;
+    $("vTier").style.color = tier.color;
+    $("vOdds").textContent = fmtOdds(odds);
+    $("vBeats").textContent = (beaten(e.key) * 100).toFixed(1) + "%";
+    $("vScore").textContent = sc;
+    $("vMeter").style.width = sc + "%";
+    $("vMeter").style.background = tier.color;
+    $("vOrder").innerHTML = e.cat === 7
+      ? "Draw order: all 4 ranks are the same."
+      : e.ordered
+        ? `Draw order: <b>in order ${e.up && !e.down ? "↑ low to high" : "↓ high to low"}</b>. Bonus: this makes the result rarer.`
+        : "Draw order: mixed. No order bonus.";
+    document.querySelectorAll("tr.hit").forEach(t => t.classList.remove("hit"));
+    $("cat" + e.cat).classList.add("hit");
+    return { e, tier };
+  }
+
+  function renderHistory() {
+    $("count").textContent = `${state.total} draw${state.total === 1 ? "" : "s"}`;
+    $("history").replaceChildren(...state.history.map(h => {
+      const e = evaluate(h.cards), t = tierOf(resultOdds(e));
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="n">#${h.n}</span><span class="cards">${h.cards.map(shortCard).join(" ")}</span><span class="h">${CATS[e.cat]}${e.ordered && e.cat !== 7 ? " · in order" : ""}</span><span class="t" style="color:${t.color}">${t.name}</span>`;
+      return li;
     }));
   }
 
-  function render() {
-    const cur = state.history[0];
-    if (cur) { paint($("main"), cur); $("seedLabel").textContent = label(cur); }
-    $("count").textContent = `${state.total} roll${state.total === 1 ? "" : "s"}`;
-    const slots = [];
-    for (let i = 0; i < KEEP; i++) {
-      const r = state.history[i];
-      if (!r) { const e = document.createElement("div"); e.className = "empty"; slots.push(e); continue; }
-      const b = document.createElement("button");
-      b.className = "thumb" + (i === 0 ? " current" : "");
-      b.setAttribute("aria-label", "Enlarge roll " + r.n);
-      const c = document.createElement("canvas"); c.width = c.height = SIZE; paint(c, r);
-      const t = document.createElement("span"); t.textContent = "#" + r.n;
-      b.append(c, t);
-      b.addEventListener("click", () => openBig(r));
-      slots.push(b);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let busy = false;
+
+  function reveal(h, animate) {
+    if (!animate || reduced) {
+      slots.forEach((s, i) => { setFace(s.face, h.cards[i]); s.card.classList.remove("down"); });
+      showVerdict(h); renderHistory(); return;
     }
-    $("history").replaceChildren(...slots);
-    renderSwatches();
+    busy = true;
+    slots.forEach(s => s.card.classList.add("down"));
+    setTimeout(() => {
+      slots.forEach((s, i) => setFace(s.face, h.cards[i]));
+      slots.forEach((s, i) => setTimeout(() => s.card.classList.remove("down"), 140 * i));
+      setTimeout(() => { showVerdict(h); renderHistory(); busy = false; }, 140 * 3 + 300);
+    }, 460);
   }
 
-  function roll() {
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  function draw() {
+    if (busy) return;
     state.total += 1;
-    state.history.unshift({ n: state.total, seed, palette: state.palette });
+    const h = { n: state.total, cards: freshDraw() };
+    state.history.unshift(h);
     state.history = state.history.slice(0, KEEP);
     store.set(state);
-    render();
+    reveal(h, true);
   }
 
-  function openBig(r) {
-    paint($("big"), r);
-    $("dlgLabel").textContent = label(r);
-    $("dlg").showModal();
-  }
-
-  $("roll").addEventListener("click", roll);
-  $("mainBtn").addEventListener("click", () => state.history[0] && openBig(state.history[0]));
-  $("close").addEventListener("click", () => $("dlg").close());
-  $("big").addEventListener("click", () => $("dlg").close());
-  $("dlg").addEventListener("click", e => { if (e.target === $("dlg")) $("dlg").close(); });
-  sel.addEventListener("change", () => { state.palette = sel.value; store.set(state); renderSwatches(); });
+  $("draw").addEventListener("click", draw);
   document.addEventListener("keydown", e => {
-    if (e.code === "Space" && !$("dlg").open && e.target.tagName !== "SELECT" && e.target.tagName !== "BUTTON") { e.preventDefault(); roll(); }
+    if (e.code === "Space" && e.target.tagName !== "BUTTON" && e.target.tagName !== "SUMMARY" && e.target.tagName !== "A") { e.preventDefault(); draw(); }
   });
 
-  if (!state.history.length) roll(); else render();
+  if (state.history.length) reveal(state.history[0], false); else draw();
+
+  // Exposed for tests only.
+  window.__fourCard = { evaluate, catCount, catOrdered, resultOdds, freshDraw };
 })();
 </script>
-<!-- ARTIFACT-END -->
 </body>
 </html>
