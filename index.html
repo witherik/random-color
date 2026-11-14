@@ -72,7 +72,17 @@
   .face.red { color: var(--card-red); }
   .face .corner { font-size: clamp(13px, 4.2vw, 20px); line-height: 1; }
   .face .corner.b { justify-self: end; transform: rotate(180deg); }
-  .face .pip { place-self: center; font-size: clamp(28px, 10vw, 52px); line-height: 1; font-family: var(--font-body); }
+  .face .mid { place-self: center; display: grid; justify-items: center; gap: 2px; line-height: 1; }
+  .face .big { font: 400 clamp(34px, 12vw, 64px)/1 var(--font-display); }
+  .face .ten { letter-spacing: -0.08em; font-size: clamp(28px, 9.5vw, 52px); }
+  .face .suit { font: clamp(16px, 5vw, 26px)/1 var(--font-body); }
+
+  /* Cards that make the hand stay lit; the others fade back. */
+  .slot { transition: opacity .3s ease, filter .3s ease, transform .3s ease; }
+  .slot.key { transform: translateY(-6px); }
+  .slot.key .face { box-shadow: 0 0 0 3px var(--accent), 0 6px 0 rgba(0,0,0,.35); }
+  .slot.key small { color: var(--accent); }
+  .slot.dim { opacity: .38; filter: grayscale(.8); transform: scale(.94); }
   .back {
     transform: rotateY(180deg);
     background: repeating-linear-gradient(45deg, #5d275d 0 6px, #b13e53 6px 12px);
@@ -120,6 +130,7 @@
   .history .n { color: var(--muted); }
   .history .cards { font-weight: 600; white-space: nowrap; }
   .history .cards .r { color: #ff6b77; }
+  .history .cards .off { opacity: .35; font-weight: 400; }
   .history .h { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   .history .t { font: 400 10px/1 var(--font-display); }
   .hint { color: var(--muted); font-size: 12px; margin: 0; }
@@ -131,7 +142,7 @@
     .history .h { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .card, .meter i { transition: none; }
+    .card, .meter i, .slot { transition: none; }
     button.draw:active { transform: none; }
   }
 </style>
@@ -312,13 +323,13 @@
     const lab = document.createElement("small"); lab.textContent = ORD_NAMES[i] + " draw";
     slot.append(card, lab);
     $("hand").append(slot);
-    return { card, face };
+    return { slot, card, face };
   });
 
   function setFace(face, c) {
     const r = rl(rankOf(c)), s = SUITS[suitOf(c)];
     face.className = "face" + (RED[suitOf(c)] ? " red" : "");
-    face.innerHTML = `<span class="corner">${r}${s}</span><span class="pip">${s}</span><span class="corner b">${r}${s}</span>`;
+    face.innerHTML = `<span class="corner">${r}${s}</span><span class="mid"><span class="big${r === "10" ? " ten" : ""}">${r}</span><span class="suit">${s}</span></span><span class="corner b">${r}${s}</span>`;
     face.parentElement.setAttribute("aria-label", cardName(c));
     face.parentElement.setAttribute("role", "img");
   }
@@ -326,10 +337,28 @@
     const names = { 11: "Jack", 12: "Queen", 13: "King", 14: "Ace" };
     return (names[rankOf(c)] || rankOf(c)) + " of " + ["spades", "hearts", "diamonds", "clubs"][suitOf(c)];
   };
-  const shortCard = c => `<span class="${RED[suitOf(c)] ? "r" : ""}">${rl(rankOf(c))}${SUITS[suitOf(c)]}</span>`;
+  const shortCard = (c, key) => `<span class="${RED[suitOf(c)] ? "r" : ""}${key ? "" : " off"}">${rl(rankOf(c))}${SUITS[suitOf(c)]}</span>`;
+
+  // Which of the 4 cards make the result. A sorted draw uses all 4.
+  function keyCards(cards, e) {
+    if (e.ordered || [2, 3, 4, 6, 7].includes(e.cat)) return [true, true, true, true];
+    const ranks = cards.map(rankOf);
+    if (e.cat === 0) { const top = Math.max(...ranks); return ranks.map(r => r === top); }
+    return ranks.map(r => ranks.filter(x => x === r).length >= 2);
+  }
+
+  function markSlots(h, e) {
+    const keys = keyCards(h.cards, e);
+    slots.forEach((s, i) => {
+      s.slot.classList.toggle("key", keys[i]);
+      s.slot.classList.toggle("dim", !keys[i]);
+    });
+  }
+  const clearSlots = () => slots.forEach(s => s.slot.classList.remove("key", "dim"));
 
   function showVerdict(h) {
     const e = evaluate(h.cards);
+    markSlots(h, e);
     const odds = resultOdds(e);
     const tier = tierOf(odds);
     const sc = score(odds);
@@ -356,7 +385,7 @@
     $("history").replaceChildren(...state.history.map(h => {
       const e = evaluate(h.cards), t = tierOf(resultOdds(e));
       const li = document.createElement("li");
-      li.innerHTML = `<span class="n">#${h.n}</span><span class="cards">${h.cards.map(shortCard).join(" ")}</span><span class="h">${CATS[e.cat]}${e.ordered && e.cat !== 7 ? " · in order" : ""}</span><span class="t" style="color:${t.color}">${t.name}</span>`;
+      li.innerHTML = `<span class="n">#${h.n}</span><span class="cards">${h.cards.map((c, i) => shortCard(c, keyCards(h.cards, e)[i])).join(" ")}</span><span class="h">${CATS[e.cat]}${e.ordered && e.cat !== 7 ? " · in order" : ""}</span><span class="t" style="color:${t.color}">${t.name}</span>`;
       return li;
     }));
   }
@@ -370,6 +399,7 @@
       showVerdict(h); renderHistory(); return;
     }
     busy = true;
+    clearSlots();
     slots.forEach(s => s.card.classList.add("down"));
     setTimeout(() => {
       slots.forEach((s, i) => setFace(s.face, h.cards[i]));
@@ -396,7 +426,7 @@
   if (state.history.length) reveal(state.history[0], false); else draw();
 
   // Exposed for tests only.
-  window.__fourCard = { evaluate, catCount, catOrdered, resultOdds, freshDraw };
+  window.__fourCard = { evaluate, catCount, catOrdered, resultOdds, freshDraw, keyCards };
 })();
 </script>
 </body>
