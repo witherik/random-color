@@ -60,34 +60,29 @@
     transform-style: preserve-3d; transition: transform .45s cubic-bezier(.2,.7,.2,1);
   }
   .card.down { transform: rotateY(180deg); }
+  /* Card art: Kenney "Playing Cards Pack" (CC0), 42x60 pixel art scaled up crisp. */
   .face, .back {
     position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-    border-radius: 6px; box-shadow: 0 3px 0 rgba(0,0,0,.35);
+    filter: drop-shadow(0 3px 0 rgba(0,0,0,.35));
   }
-  .face {
-    background: var(--card); color: var(--card-ink);
-    display: grid; grid-template-rows: auto 1fr auto; padding: 5px 6px;
-    font-family: var(--font-display);
+  .face img, .back img {
+    display: block; width: 100%; height: 100%;
+    image-rendering: pixelated; image-rendering: crisp-edges;
   }
-  .face.red { color: var(--card-red); }
-  .face .corner { font-size: clamp(13px, 4.2vw, 20px); line-height: 1; }
-  .face .corner.b { justify-self: end; transform: rotate(180deg); }
-  .face .mid { place-self: center; display: grid; justify-items: center; gap: 2px; line-height: 1; }
-  .face .big { font: 400 clamp(34px, 12vw, 64px)/1 var(--font-display); }
-  .face .ten { letter-spacing: -0.08em; font-size: clamp(28px, 9.5vw, 52px); }
-  .face .suit { font: clamp(16px, 5vw, 26px)/1 var(--font-body); }
 
   /* Cards that make the hand stay lit; the others fade back. */
   .slot { transition: opacity .3s ease, filter .3s ease, transform .3s ease; }
   .slot.key { transform: translateY(-6px); }
-  .slot.key .face { box-shadow: 0 0 0 3px var(--accent), 0 6px 0 rgba(0,0,0,.35); }
+  .slot.key .face {
+    filter: drop-shadow(3px 0 0 var(--accent)) drop-shadow(-3px 0 0 var(--accent))
+            drop-shadow(0 3px 0 var(--accent)) drop-shadow(0 -3px 0 var(--accent))
+            drop-shadow(0 4px 0 rgba(0,0,0,.35));
+  }
   .slot.key small { color: var(--accent); }
   .slot.dim { opacity: .38; filter: grayscale(.8); transform: scale(.94); }
-  .back {
-    transform: rotateY(180deg);
-    background: repeating-linear-gradient(45deg, #5d275d 0 6px, #b13e53 6px 12px);
-    border: 4px solid var(--card);
-  }
+  .back { transform: rotateY(180deg); }
+  .credit { color: var(--muted); font-size: 11px; margin: 0; text-align: center; }
+  .credit a { color: inherit; }
 
   .verdict {
     background: var(--panel); border: 2px solid var(--edge); padding: 12px;
@@ -192,6 +187,8 @@
     <h2>Last 10 draws</h2>
     <ol class="history" id="history"></ol>
   </section>
+
+  <p class="credit">Card art: <a href="https://kenney.nl/assets/playing-cards-pack">Playing Cards Pack by Kenney</a> (CC0)</p>
 </main>
 
 <script>
@@ -319,6 +316,7 @@
     const card = document.createElement("div"); card.className = "card down";
     const face = document.createElement("div"); face.className = "face";
     const back = document.createElement("div"); back.className = "back";
+    back.innerHTML = '<img src="cards/back.png" alt="">';
     card.append(face, back);
     const lab = document.createElement("small"); lab.textContent = ORD_NAMES[i] + " draw";
     slot.append(card, lab);
@@ -327,12 +325,18 @@
   });
 
   function setFace(face, c) {
-    const r = rl(rankOf(c)), s = SUITS[suitOf(c)];
-    face.className = "face" + (RED[suitOf(c)] ? " red" : "");
-    face.innerHTML = `<span class="corner">${r}${s}</span><span class="mid"><span class="big${r === "10" ? " ten" : ""}">${r}</span><span class="suit">${s}</span></span><span class="corner b">${r}${s}</span>`;
+    face.innerHTML = `<img src="${cardImg(c)}" alt="">`;
     face.parentElement.setAttribute("aria-label", cardName(c));
     face.parentElement.setAttribute("role", "img");
   }
+  const SUIT_FILE = ["spades", "hearts", "diamonds", "clubs"];
+  const cardImg = c => {
+    const r = rankOf(c);
+    return `cards/${SUIT_FILE[suitOf(c)]}_${r > 10 ? rl(r) : String(r).padStart(2, "0")}.png`;
+  };
+  // Preload all 52 faces so a flip never shows an empty card.
+  for (let c = 0; c < 52; c++) new Image().src = cardImg(c);
+
   const cardName = c => {
     const names = { 11: "Jack", 12: "Queen", 13: "King", 14: "Ace" };
     return (names[rankOf(c)] || rankOf(c)) + " of " + ["spades", "hearts", "diamonds", "clubs"][suitOf(c)];

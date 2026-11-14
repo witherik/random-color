@@ -9,6 +9,8 @@ A random card drawer. Each draw shuffles a fresh 52-card deck and draws 4 cards,
 - Each draw shows its exact odds, a tier (Common to Legendary), a rarity score (0–100) and the percent of poker hands it beats.
 - The last 10 draws are kept in the browser.
 
+Card art: [Playing Cards Pack](https://kenney.nl/assets/playing-cards-pack) by Kenney, CC0 (see `cards/LICENSE-Kenney.txt`).
+
 The older Pixel Roller (random 32×32 pixel paintings) is at `pixel-roller.html`.
 
 All files are static, no build step.
