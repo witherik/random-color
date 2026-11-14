@@ -11,5 +11,6 @@ It is one static file (`index.html`), no build step.
 
 ## Use on a phone
 
-GitHub Pages: in the repository go to **Settings → Pages → Source: GitHub Actions**.
-After a push to `main`, the workflow publishes the site to `https://<owner>.github.io/random-color/`.
+Live site: https://witherik.github.io/random-color/
+
+GitHub Pages deploys it from the `main` branch. Every push to `main` updates the site.
